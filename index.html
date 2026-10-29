@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AR-лаборатория молекул</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Мини-проект дополненной реальности: 3D-модели молекул H2O, CO2, CH4, NH3 с информационным слоем и AR-режимом. Автор: Юдина Екатерина Петровна.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;700&display=swap">
+<style>
+/* Layout: учебный «лабораторный стол» — просмотрщик на миллиметровке слева, паспорт молекулы справа; ниже проверка знаний и устройство проекта */
+:root {
+  --paper: #f3f5f8;
+  --surface: #ffffff;
+  --ink: #17202b;
+  --muted: #586374;
+  --line: #d6dce4;
+  --grid: #e3e8ee;
+  --grid-major: #d2d9e2;
+  --accent: #a3136b;        /* малиновый фенолфталеина */
+  --accent-ink: #ffffff;
+  --accent-soft: #f7e2ee;
+  --ok: #1d7a4b;
+  --ok-soft: #e1f3e9;
+  --bad: #b42318;
+  --bad-soft: #fbe6e3;
+  --cpk-h: #f2f2f2;
+  --cpk-c: #393c42;
+  --cpk-n: #3358d8;
+  --cpk-o: #d8322b;
+  --cpk-line: #b9c0ca;
+  --lone: #8e6be8;
+  --shadow: 0 1px 2px rgba(23, 32, 43, .06), 0 8px 24px rgba(23, 32, 43, .06);
+
+  --f-display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --f-body: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --s-xs: .8125rem;
+  --s-sm: .9375rem;
+  --s-md: 1.0625rem;
+  --s-lg: 1.375rem;
+  --s-xl: clamp(1.75rem, 1.2rem + 2.4vw, 2.75rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1318; --surface: #161c23; --ink: #e7ebf1; --muted: #9aa5b4; --line: #29313b;
+    --grid: #182029; --grid-major: #212a35; --accent: #f06aae; --accent-ink: #1b0613; --accent-soft: #3a1529;
+    --ok: #5bd39a; --ok-soft: #12301f; --bad: #ff8a80; --bad-soft: #3a1714;
+    --cpk-h: #f2f2f2; --cpk-c: #8d939c; --cpk-n: #6f8cff; --cpk-o: #ff5a52; --cpk-line: #4a5360; --lone: #b49bff;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1318; --surface: #161c23; --ink: #e7ebf1; --muted: #9aa5b4; --line: #29313b;
+  --grid: #182029; --grid-major: #212a35; --accent: #f06aae; --accent-ink: #1b0613; --accent-soft: #3a1529;
+  --ok: #5bd39a; --ok-soft: #12301f; --bad: #ff8a80; --bad-soft: #3a1714;
+  --cpk-h: #f2f2f2; --cpk-c: #8d939c; --cpk-n: #6f8cff; --cpk-o: #ff5a52; --cpk-line: #4a5360; --lone: #b49bff;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: var(--s-md);
+  line-height: 1.55;
+}
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 40px;
+  display: grid;
+  gap: 40px;
+}
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: var(--s-xs);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- шапка ---------- */
+.intro { display: grid; gap: 14px; max-width: 760px; }
+.intro h1 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: var(--s-xl);
+  line-height: 1.1;
+  letter-spacing: -.01em;
+}
+.intro h1 em { font-style: normal; color: var(--accent); }
+.intro .lead { color: var(--muted); max-width: 64ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: var(--s-sm); }
+.meta span { color: var(--muted); }
+.meta b { font-weight: 600; color: var(--ink); }
+
+/* ---------- лаборатория ---------- */
+.lab {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.stage { display: grid; gap: 14px; min-width: 0; }
+
+.picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.tile {
+  appearance: none;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 10px 12px 12px;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  transition: border-color .15s, transform .15s;
+}
+.tile:hover { border-color: var(--muted); }
+.tile[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.tile .row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.tile .f { font-family: var(--f-display); font-weight: 700; font-size: 1.35rem; line-height: 1.2; }
+.tile .deg { font-family: var(--f-mono); font-size: var(--s-xs); color: var(--muted); }
+.tile[aria-pressed="true"] .deg { color: var(--accent); }
+.tile .n { font-size: var(--s-xs); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.viewer {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(var(--grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+  background-position: -1px -1px;
+  box-shadow: var(--shadow);
+}
+model-viewer {
+  display: block;
+  width: 100%;
+  height: clamp(360px, 58vw, 520px);
+  background: transparent;
+  --poster-color: transparent;
+  --progress-bar-color: var(--accent);
+  --min-hotspot-opacity: 1;
+}
+.toolbar {
+  position: absolute;
+  top: 12px; left: 12px; right: 12px;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+.chip {
+  pointer-events: auto;
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 5px 12px 5px 10px;
+  font-size: var(--s-xs);
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.chip::before {
+  content: "";
+  width: 9px; height: 9px; border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  background: transparent;
+}
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); }
+.chip[aria-pressed="true"]::before { background: var(--accent); border-color: var(--accent); }
+.scale {
+  position: absolute; left: 12px; bottom: 12px; z-index: 2;
+  font-family: var(--f-mono); font-size: var(--s-xs); color: var(--muted);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 4px;
+  padding: 3px 8px;
+}
+.ar-btn {
+  position: absolute; right: 12px; bottom: 12px;
+  appearance: none; border: 0; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+  border-radius: 999px; padding: 10px 18px;
+  font-weight: 600; font-size: var(--s-sm);
+  box-shadow: var(--shadow);
+}
+.ar-note {
+  display: flex; gap: 14px; align-items: center;
+  font-size: var(--s-sm); color: var(--muted);
+  border: 1px dashed var(--line); border-radius: 6px;
+  padding: 10px 14px;
+}
+.ar-note b { color: var(--ink); font-weight: 600; }
+.ar-note .qr { flex: none; width: 96px; height: 96px; background: #fff; padding: 6px; border-radius: 4px; }
+.ar-note .qr img, .ar-note .qr svg { width: 100%; height: 100%; display: block; }
+
+/* метки информационного слоя */
+.hs {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.no-labels .hs { display: none; }
+.hs.atom .pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface);
+  border: 1.5px solid var(--cpk-line);
+  border-radius: 999px;
+  padding: 2px 9px 2px 3px;
+  font-size: 12px; line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,.18);
+}
+.hs.atom .dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 11px;
+  border: 1px solid var(--cpk-line);
+}
+.dot[data-sym="H"] { background: var(--cpk-h); color: #222; }
+.dot[data-sym="C"] { background: var(--cpk-c); color: #fff; }
+.dot[data-sym="N"] { background: var(--cpk-n); color: #fff; }
+.dot[data-sym="O"] { background: var(--cpk-o); color: #fff; }
+.hs.atom .more { display: none; color: var(--muted); }
+.hs.atom:hover .more, .hs.atom:focus-visible .more, .hs.atom.open .more { display: inline; }
+.hs.atom.open .pill { border-color: var(--accent); }
+.hs.tag .pill {
+  display: inline-block;
+  font-family: var(--f-mono); font-size: 12px; font-weight: 500;
+  padding: 2px 8px; border-radius: 4px;
+  white-space: nowrap;
+}
+.hs.angle .pill { background: var(--accent); color: var(--accent-ink); }
+.hs.lone .pill { background: var(--surface); color: var(--lone); border: 1.5px dashed var(--lone); }
+
+/* ---------- паспорт молекулы ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.card .head { display: grid; gap: 4px; }
+.card .formula {
+  font-family: var(--f-display); font-weight: 700;
+  font-size: 2.6rem; line-height: 1;
+}
+.card .title { font-size: var(--s-lg); font-weight: 600; }
+.props { margin: 0; display: grid; gap: 0; }
+.props > div {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px;
+  padding: 8px 0; border-top: 1px solid var(--line);
+  font-size: var(--s-sm);
+}
+.props dt { color: var(--muted); }
+.props dd { margin: 0; text-align: right; font-weight: 600; }
+.props dd.mono { font-weight: 500; }
+.fact { font-size: var(--s-sm); line-height: 1.6; }
+.atom-box { display: grid; gap: 8px; }
+.atom-box .label { font-size: var(--s-xs); color: var(--muted); }
+.element {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 14px; align-items: center;
+}
+.cell {
+  border: 1.5px solid var(--ink);
+  width: 76px; height: 84px;
+  padding: 5px 7px;
+  display: grid; grid-template-rows: auto 1fr auto;
+  font-family: var(--f-mono); font-size: 11px;
+  background: var(--paper);
+}
+.cell .sym { font-family: var(--f-display); font-weight: 700; font-size: 1.6rem; line-height: 1; align-self: center; }
+.element .desc { font-size: var(--s-sm); display: grid; gap: 2px; }
+.element .desc b { font-size: var(--s-md); }
+.element .desc span { color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 14px; font-size: var(--s-xs); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--cpk-line); }
+.legend .lp { width: 14px; height: 14px; border-radius: 50%; border: 1.5px dashed var(--lone); }
+
+/* ---------- проверка знаний ---------- */
+.section-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 20px; margin-bottom: 16px; }
+.section-head h2 { font-family: var(--f-display); font-weight: 500; font-size: var(--s-lg); }
+.score { font-family: var(--f-mono); font-size: var(--s-sm); color: var(--muted); }
+.score b { color: var(--accent); font-weight: 500; }
+.quiz { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 14px; }
+.q {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0;
+}
+.q p.ask { font-weight: 600; }
+.opts { display: grid; gap: 6px; }
+.opt {
+  appearance: none; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); background: var(--paper);
+  border-radius: 6px; padding: 8px 12px; font-size: var(--s-sm);
+}
+.opt:hover:not(:disabled) { border-color: var(--muted); }
+.opt:disabled { cursor: default; }
+.opt.right { border-color: var(--ok); background: var(--ok-soft); }
+.opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+.why { font-size: var(--s-sm); color: var(--muted); }
+.reset { appearance: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 14px; font-size: var(--s-xs); cursor: pointer; }
+
+/* ---------- устройство проекта ---------- */
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.how > div { display: grid; gap: 6px; align-content: start; border-top: 2px solid var(--ink); padding-top: 12px; }
+.how h3 { font-size: var(--s-md); font-weight: 600; }
+.how p { font-size: var(--s-sm); color: var(--muted); }
+
+footer { font-size: var(--s-xs); color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 4px; }
+
+@media (max-width: 900px) {
+  .lab { grid-template-columns: minmax(0, 1fr); }
+  .how { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+}
+@media (max-width: 520px) {
+  .picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card { padding: 18px; }
+  .card .formula { font-size: 2.2rem; }
+  .ar-note .qr { width: 80px; height: 80px; }
+  model-viewer { height: 400px; }
+  .toolbar {
+    position: static;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .scale { bottom: auto; top: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="intro">
+    <div class="eyebrow">Лабораторная работа · Иммерсивные технологии в образовании</div>
+    <h1>AR-лаборатория: <em>строение молекул</em></h1>
+    <p class="lead">Учебный мини-проект дополненной реальности для уроков химии. Ученик выбирает молекулу, вращает её, читает подписи атомов и валентных углов, а на смартфоне ставит модель на парту в реальном масштабе 1 пм = 1 мм.</p>
+    <div class="meta">
+      <span>Автор: <b>Юдина Екатерина Петровна</b></span>
+      <span>Предмет: <b>химия, 8–9 класс</b></span>
+      <span>Тема: <b>Ковалентная связь и геометрия молекул</b></span>
+    </div>
+  </header>
+
+  <section class="lab" aria-label="3D-просмотр молекул">
+    <div class="stage">
+      <div class="picker" role="group" aria-label="Выбор молекулы (замена объекта)" id="picker"></div>
+
+      <div class="viewer">
+        <model-viewer id="mv"
+          alt="3D-модель молекулы воды"
+          camera-controls
+          touch-action="pan-y"
+          auto-rotate
+          auto-rotate-delay="1500"
+          rotation-per-second="18deg"
+          interaction-prompt="none"
+          shadow-intensity="0.7"
+          shadow-softness="0.9"
+          exposure="1.05"
+          environment-image="neutral"
+          ar
+          ar-modes="webxr scene-viewer quick-look"
+          ar-scale="fixed"
+          ar-placement="floor"
+          camera-orbit="0deg 78deg auto"
+          min-camera-orbit="auto auto 0.25m"
+          max-camera-orbit="auto auto 1.2m">
+          <button slot="ar-button" class="ar-btn" id="arBtn">Поставить на стол (AR)</button>
+        </model-viewer>
+
+        <div class="toolbar" role="group" aria-label="Слои">
+          <button class="chip" id="tLabels" aria-pressed="true">Подписи</button>
+          <button class="chip" id="tLone" aria-pressed="true">Электронные пары</button>
+          <button class="chip" id="tSpin" aria-pressed="true">Вращение</button>
+        </div>
+        <div class="scale">AR-масштаб 1 пм = 1 мм</div>
+      </div>
+
+      <div class="ar-note" id="arNote" hidden>
+        <div class="qr" id="qr" hidden></div>
+        <p id="arNoteText"><b>Режим камеры.</b> Откройте сайт проекта на смартфоне (Android с сервисами Google Play для AR или iPhone) — в углу просмотрщика появится кнопка «Поставить на стол».</p>
+      </div>
+    </div>
+
+    <aside class="card" aria-live="polite">
+      <div class="head">
+        <div class="eyebrow" id="cGeom">Угловая молекула</div>
+        <div class="formula" id="cFormula">H₂O</div>
+        <div class="title" id="cName">Вода</div>
+      </div>
+      <dl class="props" id="cProps"></dl>
+      <p class="fact" id="cFact"></p>
+      <div class="atom-box">
+        <div class="label">Выбранный атом — нажмите на подпись в модели</div>
+        <div class="element">
+          <div class="cell" id="eCell">
+            <span id="eZ">8</span>
+            <span class="sym" id="eSym">O</span>
+            <span id="eAr">15,999</span>
+          </div>
+          <div class="desc">
+            <b id="eName">Кислород</b>
+            <span id="eEn">Электроотрицательность 3,44</span>
+            <span id="eRole">Центральный атом</span>
+          </div>
+        </div>
+      </div>
+      <div class="legend" aria-label="Обозначения">
+        <span><i class="dot" data-sym="H"></i>H — водород</span>
+        <span><i class="dot" data-sym="C"></i>C — углерод</span>
+        <span><i class="dot" data-sym="N"></i>N — азот</span>
+        <span><i class="dot" data-sym="O"></i>O — кислород</span>
+        <span><i class="lp"></i>неподелённая пара</span>
+      </div>
+    </aside>
+  </section>
+
+  <section aria-labelledby="quizTitle">
+    <div class="section-head">
+      <h2 id="quizTitle">Проверь себя</h2>
+      <div style="display:flex;gap:12px;align-items:center">
+        <span class="score" id="score">Верно: <b>0</b> из 6</span>
+        <button class="reset" id="reset">Начать заново</button>
+      </div>
+    </div>
+    <div class="quiz" id="quiz"></div>
+  </section>
+
+  <section aria-labelledby="howTitle">
+    <div class="section-head"><h2 id="howTitle">Как устроен проект</h2></div>
+    <div class="how">
+      <div>
+        <h3>Замена объекта</h3>
+        <p>Один AR-сценарий, четыре модели. Плитки над просмотрщиком подменяют 3D-объект: вода, углекислый газ, метан, аммиак. Модели построены программно по реальным длинам связей и углам и сохранены в формате .glb.</p>
+      </div>
+      <div>
+        <h3>Информационный слой</h3>
+        <p>Поверх модели выводятся подписи атомов, валентный угол и неподелённые электронные пары. Нажатие на атом открывает его «клетку» из периодической таблицы. Слои включаются и выключаются кнопками.</p>
+      </div>
+      <div>
+        <h3>AR-режим</h3>
+        <p>На смартфоне кнопка «Поставить на стол» запускает камеру: молекула встаёт на парту, вокруг неё можно ходить. Связь O–H длиной 96 пм превращается в 96 мм, так что угол можно измерить транспортиром.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Юдина Екатерина Петровна · лабораторная работа «Иммерсивные технологии: создание мини-проекта дополненной реальности»</span>
+    <span>3D-модели: собственная разработка (Python, trimesh), формат glTF/.glb · просмотр и AR: Google model-viewer · цвета атомов по схеме CPK</span>
+  </footer>
+</div>
+
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.1.0/dist/model-viewer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var ATOMS = {
+    H: { name: "Водород", Z: 1, Ar: "1,008", en: "2,20", r: 0.028 },
+    C: { name: "Углерод", Z: 6, Ar: "12,011", en: "2,55", r: 0.044 },
+    N: { name: "Азот", Z: 7, Ar: "14,007", en: "3,04", r: 0.044 },
+    O: { name: "Кислород", Z: 8, Ar: "15,999", en: "3,44", r: 0.046 }
+  };
+
+  // Координаты атомов совпадают с моделями .glb (метры, ось Y вверх)
+  var MOLS = {
+    h2o: {
+      file: "models/h2o.glb", formula: "H₂O", name: "Вода", geom: "Угловая молекула",
+      angle: "104,5°", angleName: "H–O–H", orbit: "0deg 78deg auto",
+      atoms: [["O", [0, 0, 0]], ["H", [0.0759, -0.0588, 0]], ["H", [-0.0759, -0.0588, 0]]],
+      anglePos: [0, -0.066, 0], lone: [[0, 0.075, 0.106]],
+      props: [["Форма", "угловая"], ["Угол H–O–H", "104,5°", 1], ["Длина связи O–H", "96 пм", 1],
+              ["Гибридизация O", "sp³"], ["Неподелённые пары O", "2"], ["Тип связи", "ковалентная полярная"],
+              ["Полярность молекулы", "полярная, μ = 1,85 D"]],
+      fact: "Две неподелённые пары кислорода отталкивают связи O–H сильнее, чем связи отталкивают друг друга. Поэтому угол сжат с тетраэдрических 109,5° до 104,5°. Из-за угловой формы вода полярна и хорошо растворяет соли."
+    },
+    co2: {
+      file: "models/co2.glb", formula: "CO₂", name: "Углекислый газ", geom: "Линейная молекула",
+      angle: "180°", angleName: "O=C=O", orbit: "0deg 75deg auto",
+      atoms: [["C", [0, 0, 0]], ["O", [0.116, 0, 0]], ["O", [-0.116, 0, 0]]],
+      anglePos: [0, 0.072, 0], lone: [],
+      props: [["Форма", "линейная"], ["Угол O=C=O", "180°", 1], ["Длина связи C=O", "116 пм", 1],
+              ["Гибридизация C", "sp"], ["Неподелённые пары C", "0"], ["Тип связи", "ковалентная полярная, двойная"],
+              ["Полярность молекулы", "неполярная, μ = 0"]],
+      fact: "Каждая связь C=O полярна, но две связи направлены в противоположные стороны. Их дипольные моменты взаимно гасятся, поэтому молекула в целом неполярна."
+    },
+    ch4: {
+      file: "models/ch4.glb", formula: "CH₄", name: "Метан", geom: "Тетраэдрическая молекула",
+      angle: "109,5°", angleName: "H–C–H", orbit: "35deg 72deg auto",
+      atoms: [["C", [0, 0, 0]], ["H", [0, 0.109, 0]], ["H", [0.0727, -0.0363, -0.0727]],
+              ["H", [-0.0993, -0.0363, -0.0266]], ["H", [0.0266, -0.0363, 0.0993]]],
+      anglePos: [0.036, 0.036, -0.036], lone: [],
+      props: [["Форма", "тетраэдр"], ["Угол H–C–H", "109,5°", 1], ["Длина связи C–H", "109 пм", 1],
+              ["Гибридизация C", "sp³"], ["Неподелённые пары C", "0"], ["Тип связи", "ковалентная слабополярная"],
+              ["Полярность молекулы", "неполярная, μ = 0"]],
+      fact: "Четыре одинаковые связи C–H направлены к вершинам правильного тетраэдра: так электронные пары максимально удалены друг от друга. Метан — основной компонент природного газа."
+    },
+    nh3: {
+      file: "models/nh3.glb", formula: "NH₃", name: "Аммиак", geom: "Тригональная пирамида",
+      angle: "107°", angleName: "H–N–H", orbit: "20deg 68deg auto",
+      atoms: [["N", [0, 0, 0]], ["H", [0, -0.0376, 0.0937]], ["H", [-0.0812, -0.0376, -0.0469]],
+              ["H", [0.0812, -0.0376, -0.0469]]],
+      anglePos: [-0.0406, -0.0376, 0.0234], lone: [[0, 0.13, 0]],
+      props: [["Форма", "тригональная пирамида"], ["Угол H–N–H", "107°", 1], ["Длина связи N–H", "101 пм", 1],
+              ["Гибридизация N", "sp³"], ["Неподелённые пары N", "1"], ["Тип связи", "ковалентная полярная"],
+              ["Полярность молекулы", "полярная, μ = 1,47 D"]],
+      fact: "Одна неподелённая пара азота давит на три связи N–H, и угол уменьшается до 107°. Именно этой парой аммиак присоединяет ион H⁺ и образует ион аммония NH₄⁺."
+    }
+  };
+  var ORDER = ["h2o", "co2", "ch4", "nh3"];
+
+  var QUIZ = [
+    { q: "Какую форму имеет молекула CO₂?",
+      o: ["Угловую", "Линейную", "Тетраэдрическую", "Пирамидальную"], a: 1,
+      why: "У атома углерода нет неподелённых пар, две двойные связи расходятся на 180°." },
+    { q: "Почему угол H–O–H в воде (104,5°) меньше, чем H–C–H в метане (109,5°)?",
+      o: ["Атомы водорода притягиваются друг к другу", "Атом кислорода крупнее атома углерода",
+          "Неподелённые пары кислорода отталкивают связи сильнее", "В воде связи двойные"], a: 2,
+      why: "Неподелённая пара занимает больше места, чем связующая, и «сжимает» угол между связями." },
+    { q: "Какие две молекулы из четырёх неполярны?",
+      o: ["H₂O и NH₃", "H₂O и CO₂", "NH₃ и CH₄", "CO₂ и CH₄"], a: 3,
+      why: "В симметричных молекулах дипольные моменты связей компенсируют друг друга." },
+    { q: "Сколько неподелённых электронных пар у атома азота в NH₃?",
+      o: ["0", "1", "2", "3"], a: 1,
+      why: "Азот образует три связи N–H, оставшаяся пара из пяти валентных электронов — неподелённая." },
+    { q: "В AR масштаб 1 пм = 1 мм. Какой длины будет связь O–H на парте?",
+      o: ["9,6 мм", "0,96 мм", "96 мм", "960 мм"], a: 2,
+      why: "Длина связи O–H — 96 пм, значит, на парте это 96 мм, почти 10 см." },
+    { q: "Какой тип гибридизации у атома углерода в CO₂?",
+      o: ["sp³", "sp²", "sp", "Гибридизации нет"], a: 2,
+      why: "Две гибридные орбитали углерода направлены в противоположные стороны — отсюда угол 180°." }
+  ];
+
+  // Версия для просмотра на claude.ai не может отдавать файлы .glb, поэтому там модели лежат
+  // рядом в base64 (.b64.txt) и подставляются в загрузчик model-viewer из памяти.
+  // В версии для хостинга PACKED = false и модели грузятся из models/*.glb напрямую.
+  var PACKED = false;
+  var packedCache = {};
+  if (PACKED && window.fetch) {
+    var origFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      var u = null;
+      try { u = typeof input === "string" ? new URL(input, location.href).href : input && input.url; } catch (e) {}
+      var buf = u && packedCache[u];
+      if (buf) {
+        return Promise.resolve(new Response(buf.slice(0), {
+          status: 200,
+          headers: { "Content-Type": "model/gltf-binary", "Content-Length": String(buf.byteLength) }
+        }));
+      }
+      return origFetch(input, init);
+    };
+  }
+  function ensureModel(file) {
+    if (!PACKED) return Promise.resolve();
+    var abs = new URL(file, location.href).href;
+    if (packedCache[abs]) return Promise.resolve();
+    return fetch(file.replace(/\.glb$/, ".b64.txt"))
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+      .then(function (t) {
+        var bin = atob(t.trim());
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        packedCache[abs] = bytes.buffer;
+      });
+  }
+
+  var mv = document.getElementById("mv");
+  var picker = document.getElementById("picker");
+  var current = "h2o";
+  var state = { labels: true, lone: true, spin: true };
+
+  function norm(v) {
+    var l = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / l, v[1] / l, v[2] / l];
+  }
+  function m3(v) { return v.map(function (x) { return x.toFixed(4) + "m"; }).join(" "); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  // ---------- плитки выбора (замена объекта) ----------
+  ORDER.forEach(function (key) {
+    var m = MOLS[key];
+    var b = el("button", "tile");
+    b.type = "button";
+    b.id = "tile-" + key;
+    b.dataset.key = key;
+    b.setAttribute("aria-pressed", key === current ? "true" : "false");
+    var row = el("span", "row");
+    row.appendChild(el("span", "f", m.formula));
+    row.appendChild(el("span", "deg", m.angle));
+    b.appendChild(row);
+    b.appendChild(el("span", "n", m.name));
+    b.addEventListener("click", function () { setMolecule(key, true); });
+    picker.appendChild(b);
+  });
+
+  // ---------- информационный слой ----------
+  function buildHotspots(m) {
+    Array.prototype.slice.call(mv.querySelectorAll(".hs")).forEach(function (n) { n.remove(); });
+    m.atoms.forEach(function (a, i) {
+      var sym = a[0], p = a[1], info = ATOMS[sym];
+      var pos = p;
+      if (i > 0) {
+        var d = norm(p);
+        pos = [p[0] + d[0] * (info.r + 0.014), p[1] + d[1] * (info.r + 0.014), p[2] + d[2] * (info.r + 0.014)];
+      }
+      var b = el("button", "hs atom");
+      b.type = "button";
+      b.slot = "hotspot-atom-" + i;
+      b.dataset.position = m3(pos);
+      b.dataset.sym = sym;
+      b.dataset.index = String(i);
+      b.setAttribute("aria-label", info.name + (i === 0 ? ", центральный атом" : ""));
+      var pill = el("span", "pill");
+      var dot = el("span", "dot", sym);
+      dot.dataset.sym = sym;
+      pill.appendChild(dot);
+      pill.appendChild(el("span", "more", info.name.toLowerCase() + " · ЭО " + info.en));
+      b.appendChild(pill);
+      b.addEventListener("click", function () { selectAtom(i); });
+      mv.appendChild(b);
+    });
+    var ang = el("div", "hs tag angle");
+    ang.slot = "hotspot-angle";
+    ang.dataset.position = m3(m.anglePos);
+    ang.appendChild(el("span", "pill", "∠ " + m.angle));
+    mv.appendChild(ang);
+    m.lone.forEach(function (p, i) {
+      var t = el("div", "hs tag lone");
+      t.slot = "hotspot-lone-" + i;
+      t.dataset.position = m3(p);
+      t.appendChild(el("span", "pill", "неподелённая пара"));
+      t.hidden = !state.lone;
+      mv.appendChild(t);
+    });
+  }
+
+  function selectAtom(i) {
+    var m = MOLS[current];
+    var sym = m.atoms[i][0], info = ATOMS[sym];
+    document.getElementById("eZ").textContent = info.Z;
+    document.getElementById("eSym").textContent = sym;
+    document.getElementById("eAr").textContent = info.Ar;
+    document.getElementById("eName").textContent = info.name;
+    document.getElementById("eEn").textContent = "Электроотрицательность " + info.en;
+    var same = m.atoms.filter(function (a) { return a[0] === sym; }).length;
+    document.getElementById("eRole").textContent = i === 0
+      ? "Центральный атом"
+      : "Концевой атом, в молекуле таких " + same;
+    Array.prototype.slice.call(mv.querySelectorAll(".hs.atom")).forEach(function (n) {
+      n.classList.toggle("open", n.dataset.index === String(i));
+    });
+  }
+
+  function renderCard(m) {
+    document.getElementById("cFormula").textContent = m.formula;
+    document.getElementById("cName").textContent = m.name;
+    document.getElementById("cGeom").textContent = m.geom;
+    document.getElementById("cFact").textContent = m.fact;
+    var dl = document.getElementById("cProps");
+    dl.textContent = "";
+    m.props.forEach(function (p) {
+      var row = el("div");
+      row.appendChild(el("dt", null, p[0]));
+      row.appendChild(el("dd", p[2] ? "mono" : null, p[1]));
+      dl.appendChild(row);
+    });
+  }
+
+  function setMolecule(key, fromUser) {
+    if (!MOLS[key]) key = "h2o";
+    current = key;
+    var m = MOLS[key];
+    ensureModel(m.file).then(function () {
+      if (current === key) mv.setAttribute("src", m.file);
+    }).catch(function () {
+      document.getElementById("arNote").hidden = false;
+      document.getElementById("arNoteText").textContent = "Не удалось загрузить модель. Обновите страницу.";
+    });
+    mv.setAttribute("alt", "3D-модель молекулы: " + m.name + " (" + m.formula + ")");
+    mv.setAttribute("camera-orbit", m.orbit);
+    mv.setAttribute("camera-target", "auto auto auto");
+    buildHotspots(m);
+    renderCard(m);
+    selectAtom(0);
+    ORDER.forEach(function (k) {
+      document.getElementById("tile-" + k).setAttribute("aria-pressed", k === key ? "true" : "false");
+    });
+    if (fromUser) {
+      try { history.replaceState(null, "", "#" + key); } catch (e) {}
+    }
+  }
+
+  // ---------- слои ----------
+  function applyLone() {
+    var model = mv.model;
+    if (model && model.materials) {
+      model.materials.forEach(function (mat) {
+        if (mat.name === "lone_pair") {
+          mat.pbrMetallicRoughness.setBaseColorFactor([0.62, 0.48, 0.95, state.lone ? 0.35 : 0]);
+        }
+      });
+    }
+    Array.prototype.slice.call(mv.querySelectorAll(".hs.lone")).forEach(function (n) { n.hidden = !state.lone; });
+  }
+  function toggle(id, key, fn) {
+    var b = document.getElementById(id);
+    b.addEventListener("click", function () {
+      state[key] = !state[key];
+      b.setAttribute("aria-pressed", state[key] ? "true" : "false");
+      fn();
+    });
+  }
+  toggle("tLabels", "labels", function () { mv.classList.toggle("no-labels", !state.labels); });
+  toggle("tLone", "lone", applyLone);
+  toggle("tSpin", "spin", function () {
+    if (state.spin) mv.setAttribute("auto-rotate", ""); else mv.removeAttribute("auto-rotate");
+  });
+
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    state.spin = false;
+    mv.removeAttribute("auto-rotate");
+    document.getElementById("tSpin").setAttribute("aria-pressed", "false");
+  }
+
+  // ---------- AR ----------
+  var topLevel = false;
+  try { topLevel = window.self === window.top; } catch (e) { topLevel = false; }
+  var qrDone = false;
+  function updateAR() {
+    var can = !!mv.canActivateAR;
+    var note = document.getElementById("arNote");
+    note.hidden = can;
+    if (!can && topLevel && !qrDone && typeof qrcode === "function" && /^https:/.test(location.href)) {
+      try {
+        var q = qrcode(0, "M");
+        q.addData(location.href.split("#")[0]);
+        q.make();
+        var box = document.getElementById("qr");
+        box.innerHTML = q.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+        box.hidden = false;
+        document.getElementById("arNoteText").innerHTML =
+          "<b>Режим камеры.</b> Наведите камеру смартфона на QR-код, откройте страницу и нажмите «Поставить на стол». Нужен Android с сервисами Google Play для AR или iPhone.";
+        qrDone = true;
+      } catch (e) {}
+    }
+  }
+  mv.addEventListener("load", function () { applyLone(); updateAR(); });
+  mv.addEventListener("ar-status", function (ev) {
+    if (ev.detail && ev.detail.status === "failed") {
+      document.getElementById("arNote").hidden = false;
+      document.getElementById("arNoteText").innerHTML =
+        "<b>AR не запустился.</b> Проверьте, что страница открыта по https и браузер получил доступ к камере.";
+    }
+  });
+  setTimeout(updateAR, 2500);
+
+  // ---------- проверка знаний ----------
+  var quizBox = document.getElementById("quiz");
+  var answered = {};
+  function renderQuiz() {
+    quizBox.textContent = "";
+    answered = {};
+    updateScore();
+    QUIZ.forEach(function (item, qi) {
+      var card = el("div", "q");
+      card.appendChild(el("p", "ask", item.q));
+      var opts = el("div", "opts");
+      var why = el("p", "why", item.why);
+      why.hidden = true;
+      item.o.forEach(function (text, oi) {
+        var b = el("button", "opt", text);
+        b.type = "button";
+        b.id = "q" + qi + "o" + oi;
+        b.addEventListener("click", function () {
+          if (answered[qi] != null) return;
+          answered[qi] = oi === item.a;
+          Array.prototype.slice.call(opts.children).forEach(function (x, xi) {
+            x.disabled = true;
+            if (xi === item.a) x.classList.add("right");
+            else if (xi === oi) x.classList.add("wrong");
+          });
+          why.hidden = false;
+          updateScore();
+        });
+        opts.appendChild(b);
+      });
+      card.appendChild(opts);
+      card.appendChild(why);
+      quizBox.appendChild(card);
+    });
+  }
+  function updateScore() {
+    var ok = Object.keys(answered).filter(function (k) { return answered[k]; }).length;
+    document.getElementById("score").innerHTML = "Верно: <b>" + ok + "</b> из " + QUIZ.length;
+  }
+  document.getElementById("reset").addEventListener("click", renderQuiz);
+
+  // ---------- старт ----------
+  var start = (location.hash || "").replace("#", "");
+  renderQuiz();
+  setMolecule(MOLS[start] ? start : "h2o", false);
+})();
+</script>
+</body>
+</html>
